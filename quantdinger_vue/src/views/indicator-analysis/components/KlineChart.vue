@@ -391,10 +391,21 @@ export default {
 
         loadingPython.value = true
 
-        // 动态加载 Pyodide（本地优先，CDN兜底）
+        // 动态加载 Pyodide（生产环境默认 CDN 优先，避免本地静态资源缺失导致 404 卡住/报错）
+        // 可通过环境变量自定义：
+        // - VUE_APP_PYODIDE_CDN_BASE: 覆盖 CDN 基础路径（需以 / 结尾或会自动补齐）
+        // - VUE_APP_PYODIDE_LOCAL_BASE: 覆盖本地基础路径（需以 / 结尾或会自动补齐）
+        // - VUE_APP_PYODIDE_PREFER_CDN: 'true'/'false' 强制优先级
         const PYODIDE_VERSION = '0.25.0'
-        const localBase = `/assets/pyodide/v${PYODIDE_VERSION}/full/`
-        const cdnBase = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
+        const _ensureTrailingSlash = (s) => (s && s.endsWith('/')) ? s : (s ? (s + '/') : s)
+        const defaultLocalBase = `/assets/pyodide/v${PYODIDE_VERSION}/full/`
+        const defaultCdnBase = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`
+        const localBase = _ensureTrailingSlash(process.env.VUE_APP_PYODIDE_LOCAL_BASE || defaultLocalBase)
+        const cdnBase = _ensureTrailingSlash(process.env.VUE_APP_PYODIDE_CDN_BASE || defaultCdnBase)
+        const preferCdnEnv = (process.env.VUE_APP_PYODIDE_PREFER_CDN || '').toString().toLowerCase()
+        const preferCdn = preferCdnEnv
+          ? (preferCdnEnv === 'true' || preferCdnEnv === '1' || preferCdnEnv === 'yes')
+          : (process.env.NODE_ENV === 'production')
 
         const loadScript = (src) => new Promise((resolve, reject) => {
           // If script already inserted, reuse it
@@ -432,17 +443,25 @@ export default {
         }
 
         (async () => {
+          const tryLoad = async (base) => {
+            await loadScript(base + 'pyodide.js')
+            await initFromBase(base)
+          }
+
           try {
-            // 1) Local-first
-            await loadScript(localBase + 'pyodide.js')
-            await initFromBase(localBase)
-          } catch (localErr) {
+            if (preferCdn) {
+              // 1) CDN-first (production default)
+              await tryLoad(cdnBase)
+            } else {
+              // 1) Local-first (dev convenience)
+              await tryLoad(localBase)
+            }
+          } catch (firstErr) {
             try {
-              // 2) Fallback to CDN
-              await loadScript(cdnBase + 'pyodide.js')
-              await initFromBase(cdnBase)
-            } catch (cdnErr) {
-              throw cdnErr || localErr
+              // 2) Fallback
+              await tryLoad(preferCdn ? localBase : cdnBase)
+            } catch (secondErr) {
+              throw secondErr || firstErr
             }
           }
         })().catch((err) => {
