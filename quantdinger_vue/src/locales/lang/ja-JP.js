@@ -1759,7 +1759,22 @@ const locale = {
   'signal-robot.indicator.volume': 'Volume',
   'signal-robot.indicator.changePct1h': '1H Change %',
   'signal-robot.indicator.changePct24h': '24H Change %',
-  'signal-robot.indicator.signalLine': 'Signal Line'
+  'signal-robot.indicator.signalLine': 'Signal Line',
+
+  // Settings (Memory/Reflection)
+  'settings.group.agent_memory': '記憶/反省設定',
+  'settings.group.reflection_worker': '自動反省検証ワーカー',
+  'settings.field.ENABLE_AGENT_MEMORY': 'エージェント記憶を有効化',
+  'settings.field.AGENT_MEMORY_ENABLE_VECTOR': 'ベクトル検索を有効化（ローカル）',
+  'settings.field.AGENT_MEMORY_EMBEDDING_DIM': '埋め込み次元',
+  'settings.field.AGENT_MEMORY_TOP_K': 'Top-K 取得数',
+  'settings.field.AGENT_MEMORY_CANDIDATE_LIMIT': '候補ウィンドウサイズ',
+  'settings.field.AGENT_MEMORY_HALF_LIFE_DAYS': '時間減衰の半減期（日）',
+  'settings.field.AGENT_MEMORY_W_SIM': '類似度重み',
+  'settings.field.AGENT_MEMORY_W_RECENCY': '新しさ重み',
+  'settings.field.AGENT_MEMORY_W_RETURNS': '収益重み',
+  'settings.field.ENABLE_REFLECTION_WORKER': '自動検証を有効化',
+  'settings.field.REFLECTION_WORKER_INTERVAL_SEC': '検証間隔（秒）'
 }
 
 export default {

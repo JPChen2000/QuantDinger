@@ -1605,6 +1605,8 @@ const locale = {
   'settings.group.market': '市場預設',
   'settings.group.data_source': '數據源配置',
   'settings.group.search': '搜索配置',
+  'settings.group.agent_memory': '記憶/反思配置',
+  'settings.group.reflection_worker': '自動反思驗證Worker',
   // Settings fields - Auth
   'settings.field.SECRET_KEY': 'Secret Key',
   'settings.field.ADMIN_USER': '管理員用戶名',
@@ -1648,6 +1650,19 @@ const locale = {
   'settings.field.ENABLE_CACHE': '啟用緩存',
   'settings.field.ENABLE_REQUEST_LOG': '啟用請求日誌',
   'settings.field.ENABLE_AI_ANALYSIS': '啟用AI分析',
+  // Settings fields - 記憶/反思
+  'settings.field.ENABLE_AGENT_MEMORY': '啟用Agent記憶',
+  'settings.field.AGENT_MEMORY_ENABLE_VECTOR': '啟用向量檢索(本地)',
+  'settings.field.AGENT_MEMORY_EMBEDDING_DIM': 'Embedding維度',
+  'settings.field.AGENT_MEMORY_TOP_K': '召回數量TopK',
+  'settings.field.AGENT_MEMORY_CANDIDATE_LIMIT': '候選窗口大小',
+  'settings.field.AGENT_MEMORY_HALF_LIFE_DAYS': '時間衰減半衰期(天)',
+  'settings.field.AGENT_MEMORY_W_SIM': '相似度權重',
+  'settings.field.AGENT_MEMORY_W_RECENCY': '時間權重',
+  'settings.field.AGENT_MEMORY_W_RETURNS': '收益權重',
+  // Settings fields - 自動反思驗證Worker
+  'settings.field.ENABLE_REFLECTION_WORKER': '啟用自動驗證',
+  'settings.field.REFLECTION_WORKER_INTERVAL_SEC': '驗證周期間隔(秒)',
   // Settings fields - AI
   'settings.field.OPENROUTER_API_KEY': 'OpenRouter API Key',
   'settings.field.OPENROUTER_API_URL': 'OpenRouter API URL',

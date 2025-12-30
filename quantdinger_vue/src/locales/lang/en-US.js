@@ -1901,6 +1901,8 @@ const locale = {
   'settings.group.market': 'Market Presets',
   'settings.group.data_source': 'Data Sources',
   'settings.group.search': 'Search Configuration',
+  'settings.group.agent_memory': 'Memory/Reflection',
+  'settings.group.reflection_worker': 'Auto Reflection Verification Worker',
   // Settings fields - Auth
   'settings.field.SECRET_KEY': 'Secret Key',
   'settings.field.ADMIN_USER': 'Admin Username',
@@ -1944,6 +1946,19 @@ const locale = {
   'settings.field.ENABLE_CACHE': 'Enable Cache',
   'settings.field.ENABLE_REQUEST_LOG': 'Enable Request Log',
   'settings.field.ENABLE_AI_ANALYSIS': 'Enable AI Analysis',
+  // Settings fields - Memory/Reflection
+  'settings.field.ENABLE_AGENT_MEMORY': 'Enable Agent Memory',
+  'settings.field.AGENT_MEMORY_ENABLE_VECTOR': 'Enable Vector Retrieval (Local)',
+  'settings.field.AGENT_MEMORY_EMBEDDING_DIM': 'Embedding Dimension',
+  'settings.field.AGENT_MEMORY_TOP_K': 'Top-K Retrieval Count',
+  'settings.field.AGENT_MEMORY_CANDIDATE_LIMIT': 'Candidate Window Size',
+  'settings.field.AGENT_MEMORY_HALF_LIFE_DAYS': 'Time Decay Half-life (days)',
+  'settings.field.AGENT_MEMORY_W_SIM': 'Similarity Weight',
+  'settings.field.AGENT_MEMORY_W_RECENCY': 'Recency Weight',
+  'settings.field.AGENT_MEMORY_W_RETURNS': 'Returns Weight',
+  // Settings fields - Reflection Worker
+  'settings.field.ENABLE_REFLECTION_WORKER': 'Enable Auto Verification',
+  'settings.field.REFLECTION_WORKER_INTERVAL_SEC': 'Verification Interval (sec)',
   // Settings fields - AI
   'settings.field.OPENROUTER_API_KEY': 'OpenRouter API Key',
   'settings.field.OPENROUTER_API_URL': 'OpenRouter API URL',

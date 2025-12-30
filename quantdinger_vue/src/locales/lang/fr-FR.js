@@ -1759,7 +1759,22 @@ const locale = {
   'signal-robot.indicator.volume': 'Volume',
   'signal-robot.indicator.changePct1h': '1H Change %',
   'signal-robot.indicator.changePct24h': '24H Change %',
-  'signal-robot.indicator.signalLine': 'Signal Line'
+  'signal-robot.indicator.signalLine': 'Signal Line',
+
+  // Settings (Memory/Reflection)
+  'settings.group.agent_memory': 'Mémoire/Réflexion',
+  'settings.group.reflection_worker': 'Worker de vérification de réflexion automatique',
+  'settings.field.ENABLE_AGENT_MEMORY': 'Activer la mémoire de l’agent',
+  'settings.field.AGENT_MEMORY_ENABLE_VECTOR': 'Activer la recherche vectorielle (local)',
+  'settings.field.AGENT_MEMORY_EMBEDDING_DIM': 'Dimension d’embedding',
+  'settings.field.AGENT_MEMORY_TOP_K': 'Nombre Top-K',
+  'settings.field.AGENT_MEMORY_CANDIDATE_LIMIT': 'Taille de la fenêtre de candidats',
+  'settings.field.AGENT_MEMORY_HALF_LIFE_DAYS': 'Demi-vie de décroissance temporelle (jours)',
+  'settings.field.AGENT_MEMORY_W_SIM': 'Poids de similarité',
+  'settings.field.AGENT_MEMORY_W_RECENCY': 'Poids de récence',
+  'settings.field.AGENT_MEMORY_W_RETURNS': 'Poids des rendements',
+  'settings.field.ENABLE_REFLECTION_WORKER': 'Activer la vérification automatique',
+  'settings.field.REFLECTION_WORKER_INTERVAL_SEC': 'Intervalle de vérification (s)'
 }
 
 export default {

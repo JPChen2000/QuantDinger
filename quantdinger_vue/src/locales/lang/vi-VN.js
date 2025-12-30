@@ -2887,7 +2887,22 @@ const locale = {
 
 'layouts.usermenu.dialog.content': 'Bạn có chắc chắn muốn đăng xuất không?',
 
-'layouts.userLayout.title': 'Tìm kiếm sự thật trong sự không chắc chắn'
+'layouts.userLayout.title': 'Tìm kiếm sự thật trong sự không chắc chắn',
+
+// Settings (Memory/Reflection)
+'settings.group.agent_memory': 'Bộ nhớ/Phản tư',
+'settings.group.reflection_worker': 'Worker xác minh phản tư tự động',
+'settings.field.ENABLE_AGENT_MEMORY': 'Bật bộ nhớ tác nhân',
+'settings.field.AGENT_MEMORY_ENABLE_VECTOR': 'Bật truy vấn vector (cục bộ)',
+'settings.field.AGENT_MEMORY_EMBEDDING_DIM': 'Kích thước embedding',
+'settings.field.AGENT_MEMORY_TOP_K': 'Số lượng Top-K',
+'settings.field.AGENT_MEMORY_CANDIDATE_LIMIT': 'Kích thước cửa sổ ứng viên',
+'settings.field.AGENT_MEMORY_HALF_LIFE_DAYS': 'Chu kỳ bán rã theo thời gian (ngày)',
+'settings.field.AGENT_MEMORY_W_SIM': 'Trọng số tương đồng',
+'settings.field.AGENT_MEMORY_W_RECENCY': 'Trọng số thời gian',
+'settings.field.AGENT_MEMORY_W_RETURNS': 'Trọng số lợi nhuận',
+'settings.field.ENABLE_REFLECTION_WORKER': 'Bật xác minh tự động',
+'settings.field.REFLECTION_WORKER_INTERVAL_SEC': 'Khoảng thời gian xác minh (giây)'
 
 }
 export default {

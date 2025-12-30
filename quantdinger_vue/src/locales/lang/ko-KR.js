@@ -1758,7 +1758,22 @@ const locale = {
   'signal-robot.indicator.volume': 'Volume',
   'signal-robot.indicator.changePct1h': '1H Change %',
   'signal-robot.indicator.changePct24h': '24H Change %',
-  'signal-robot.indicator.signalLine': 'Signal Line'
+  'signal-robot.indicator.signalLine': 'Signal Line',
+
+  // Settings (Memory/Reflection)
+  'settings.group.agent_memory': '메모리/리플렉션 설정',
+  'settings.group.reflection_worker': '자동 리플렉션 검증 워커',
+  'settings.field.ENABLE_AGENT_MEMORY': '에이전트 메모리 사용',
+  'settings.field.AGENT_MEMORY_ENABLE_VECTOR': '벡터 검색 사용(로컬)',
+  'settings.field.AGENT_MEMORY_EMBEDDING_DIM': '임베딩 차원',
+  'settings.field.AGENT_MEMORY_TOP_K': 'Top-K 조회 개수',
+  'settings.field.AGENT_MEMORY_CANDIDATE_LIMIT': '후보 윈도우 크기',
+  'settings.field.AGENT_MEMORY_HALF_LIFE_DAYS': '시간 감쇠 반감기(일)',
+  'settings.field.AGENT_MEMORY_W_SIM': '유사도 가중치',
+  'settings.field.AGENT_MEMORY_W_RECENCY': '시간 가중치',
+  'settings.field.AGENT_MEMORY_W_RETURNS': '수익 가중치',
+  'settings.field.ENABLE_REFLECTION_WORKER': '자동 검증 사용',
+  'settings.field.REFLECTION_WORKER_INTERVAL_SEC': '검증 주기(초)'
 }
 
 export default {

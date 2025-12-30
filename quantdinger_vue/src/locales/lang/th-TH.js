@@ -1759,7 +1759,22 @@ const locale = {
   'signal-robot.indicator.volume': 'Volume',
   'signal-robot.indicator.changePct1h': '1H Change %',
   'signal-robot.indicator.changePct24h': '24H Change %',
-  'signal-robot.indicator.signalLine': 'Signal Line'
+  'signal-robot.indicator.signalLine': 'Signal Line',
+
+  // Settings (Memory/Reflection)
+  'settings.group.agent_memory': 'หน่วยความจำ/การสะท้อน',
+  'settings.group.reflection_worker': 'ตัวทำงานตรวจสอบการสะท้อนอัตโนมัติ',
+  'settings.field.ENABLE_AGENT_MEMORY': 'เปิดใช้หน่วยความจำเอเจนต์',
+  'settings.field.AGENT_MEMORY_ENABLE_VECTOR': 'เปิดใช้การค้นหาเวกเตอร์ (ในเครื่อง)',
+  'settings.field.AGENT_MEMORY_EMBEDDING_DIM': 'มิติ Embedding',
+  'settings.field.AGENT_MEMORY_TOP_K': 'จำนวนดึงข้อมูล Top-K',
+  'settings.field.AGENT_MEMORY_CANDIDATE_LIMIT': 'ขนาดหน้าต่างผู้สมัคร',
+  'settings.field.AGENT_MEMORY_HALF_LIFE_DAYS': 'ครึ่งชีวิตการลดทอนตามเวลา (วัน)',
+  'settings.field.AGENT_MEMORY_W_SIM': 'ค่าน้ำหนักความคล้าย',
+  'settings.field.AGENT_MEMORY_W_RECENCY': 'ค่าน้ำหนักเวลา',
+  'settings.field.AGENT_MEMORY_W_RETURNS': 'ค่าน้ำหนักผลตอบแทน',
+  'settings.field.ENABLE_REFLECTION_WORKER': 'เปิดใช้การตรวจสอบอัตโนมัติ',
+  'settings.field.REFLECTION_WORKER_INTERVAL_SEC': 'ช่วงเวลาตรวจสอบ (วินาที)'
 }
 
 export default {

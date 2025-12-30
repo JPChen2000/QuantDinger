@@ -1758,7 +1758,22 @@ const locale = {
   'signal-robot.indicator.volume': 'Volume',
   'signal-robot.indicator.changePct1h': '1H Change %',
   'signal-robot.indicator.changePct24h': '24H Change %',
-  'signal-robot.indicator.signalLine': 'Signal Line'
+  'signal-robot.indicator.signalLine': 'Signal Line',
+
+  // Settings (Memory/Reflection)
+  'settings.group.agent_memory': 'الذاكرة/الانعكاس',
+  'settings.group.reflection_worker': 'عامل التحقق التلقائي للانعكاس',
+  'settings.field.ENABLE_AGENT_MEMORY': 'تمكين ذاكرة الوكيل',
+  'settings.field.AGENT_MEMORY_ENABLE_VECTOR': 'تمكين الاسترجاع المتجهي (محلي)',
+  'settings.field.AGENT_MEMORY_EMBEDDING_DIM': 'بُعد التضمين',
+  'settings.field.AGENT_MEMORY_TOP_K': 'عدد الاسترجاع Top-K',
+  'settings.field.AGENT_MEMORY_CANDIDATE_LIMIT': 'حجم نافذة المرشحين',
+  'settings.field.AGENT_MEMORY_HALF_LIFE_DAYS': 'نصف عمر تلاشي الزمن (أيام)',
+  'settings.field.AGENT_MEMORY_W_SIM': 'وزن التشابه',
+  'settings.field.AGENT_MEMORY_W_RECENCY': 'وزن الحداثة',
+  'settings.field.AGENT_MEMORY_W_RETURNS': 'وزن العائد',
+  'settings.field.ENABLE_REFLECTION_WORKER': 'تمكين التحقق التلقائي',
+  'settings.field.REFLECTION_WORKER_INTERVAL_SEC': 'فاصل التحقق (ثانية)'
 }
 
 export default {
