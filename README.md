@@ -5,6 +5,15 @@
 
   <h1 align="center">QuantDinger</h1>
 
+  <div align="center">
+    <a href="README.md">🇺🇸 English</a> |
+    <a href="README_CN.md">🇨🇳 简体中文</a> |
+    <a href="README_TW.md">🇹🇼 繁體中文</a> |
+    <a href="README_JA.md">🇯🇵 日本語</a> |
+    <a href="README_KO.md">🇰🇷 한국어</a>
+  </div>
+  <br/>
+
   <p align="center">
     <strong>🤖 AI-Native · 🔒 Privacy-First · 🚀 All-in-One Quant Workspace</strong>
   </p>
