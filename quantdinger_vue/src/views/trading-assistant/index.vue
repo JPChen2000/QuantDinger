@@ -2772,7 +2772,7 @@ export default {
           const server = values.mt5_server || ''
           const login = values.mt5_login || ''
           const password = values.mt5_password || ''
-          const terminal_path = values.mt5_terminal_path || ''
+          const terminalPath = values.mt5_terminal_path || ''
 
           if (!server || !login || !password) {
             this.testResult = {
@@ -2790,7 +2790,7 @@ export default {
               server: server,
               login: parseInt(login),
               password: password,
-              terminal_path: terminal_path
+              terminal_path: terminalPath
             })
 
             if (res.data && res.data.success) {
