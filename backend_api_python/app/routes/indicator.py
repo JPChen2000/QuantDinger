@@ -451,9 +451,9 @@ IMPORTANT: Output Python code directly, without explanations, without descriptio
     def _template_code() -> str:
         # Fallback template that follows the project expectations.
         header = (
-            f"my_indicator_name = \"Custom Indicator\"\n"
-            f"my_indicator_description = \"{prompt.replace('\\n', ' ')[:200]}\"\n\n"
-        )
+            "my_indicator_name = \"Custom Indicator\"\n"
+            "my_indicator_description = \"{}\"\n\n"
+        ).format(prompt.replace('\n', ' ')[:200])
         body = (
             "df = df.copy()\n\n"
             "# Example: robust RSI with edge-triggered buy/sell (no position management, no TP/SL on chart)\n"
