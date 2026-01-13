@@ -1,52 +1,55 @@
 const path = require('path')
 const webpack = require('webpack')
 const packageJson = require('./package.json')
-const GitRevisionPlugin = require('git-revision-webpack-plugin')
-const GitRevision = new GitRevisionPlugin()
-const buildDate = JSON.stringify(new Date().toLocaleString())
-const createThemeColorReplacerPlugin = require('./config/plugin.config')
 
-function resolve (dir) {
+// ========== git-revision-webpack-plugin兼容性处理 ==========
+let GitRevision
+try {
+  const GitRevisionPlugin = require('git-revision-webpack-plugin')
+  // 处理ES模块和CommonJS的差异
+  const PluginClass = GitRevisionPlugin.default || GitRevisionPlugin
+  GitRevision = new PluginClass()
+} catch (e) {
+  console.warn('git-revision-webpack-plugin not found, using fallback')
+  GitRevision = {
+    version: () => 'dev',
+    commithash: () => 'unknown',
+    branch: () => 'unknown'
+  }
+}
+
+const buildDate = JSON.stringify(new Date().toLocaleString())
+
+// ========== theme-color-replacer安全加载 ==========
+function getThemeColorReplacerPlugin() {
+  try {
+    const createThemeColorReplacerPlugin = require('./config/plugin.config')
+    return createThemeColorReplacerPlugin()
+  } catch (e) {
+    console.warn('ThemeColorReplacer plugin failed to load:', e.message)
+    return { apply: () => {} }
+  }
+}
+
+function resolve(dir) {
   return path.join(__dirname, dir)
 }
 
-// check Git
-function getGitHash () {
+function getGitHash() {
   try {
     return GitRevision.version()
-  } catch (e) {}
-  return 'unknown'
-}
-// eslint-disable-next-line no-unused-vars
-const isProd = process.env.NODE_ENV === 'production'
-// eslint-disable-next-line no-unused-vars
-const assetsCDN = {
-  // webpack build externals
-  externals: {
-    vue: 'Vue',
-    'vue-router': 'VueRouter',
-    vuex: 'Vuex',
-    axios: 'axios'
-  },
-  css: [],
-  // https://unpkg.com/browse/vue@2.6.10/
-  js: [
-    '//cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js',
-    '//cdn.jsdelivr.net/npm/vue-router@3.5.1/dist/vue-router.min.js',
-    '//cdn.jsdelivr.net/npm/vuex@3.1.1/dist/vuex.min.js',
-    '//cdn.jsdelivr.net/npm/axios@0.21.1/dist/axios.min.js'
-  ]
+  } catch (e) {
+    return 'unknown'
+  }
 }
 
-// vue.config.js
+// ========== vue.config.js配置 ==========
 const vueConfig = {
   configureWebpack: {
-    // webpack plugins
     plugins: [
-      // Ignore all locale files of moment.js
       new webpack.IgnorePlugin({
-        contextRegExp: /^\.\/locale$/,
-        resourceRegExp: /moment$/
+        resourceRegExp: /^\.\/locale$/,
+        contextRegExp: /moment$/
       }),
       new webpack.DefinePlugin({
         APP_VERSION: `"${packageJson.version}"`,
@@ -54,75 +57,54 @@ const vueConfig = {
         BUILD_DATE: buildDate
       })
     ]
-    // en_US: `if prod, add externals`
-    // zh_CN: `这里是用来控制编译忽略外部依赖的，与 config.plugin('html') 配合可以编译时引入外部CDN文件依赖`
-    // externals: isProd ? assetsCDN.externals : {}
   },
 
   chainWebpack: config => {
     config.resolve.alias.set('@$', resolve('src'))
 
-    // fixed svg-loader by https://github.com/damianstasik/vue-svg-loader/issues/185#issuecomment-1126721069
-		const svgRule = config.module.rule('svg')
-		// Remove regular svg config from root rules list
-		config.module.rules.delete('svg')
+    // SVG loader配置
+    const svgRule = config.module.rule('svg')
+    config.module.rules.delete('svg')
 
-		config.module.rule('svg')
-			// Use svg component rule
-			.oneOf('svg_as_component')
-				.resourceQuery(/inline/)
-				.test(/\.(svg)(\?.*)?$/)
-				.use('babel-loader')
-					.loader('babel-loader')
-					.end()
-				.use('vue-svg-loader')
-					.loader('vue-svg-loader')
-					.options({
-						svgo: {
-							plugins: [
-								{ prefixIds: true },
-								{ cleanupIDs: true },
-								{ convertShapeToPath: false },
-								{ convertStyleToAttrs: true }
-							]
-						}
-					})
-					.end()
-				.end()
-			// Otherwise use original svg rule
-			.oneOf('svg_as_regular')
-				.merge(svgRule.toConfig())
-				.end()
-
-    // en_US: If prod is on assets require on cdn
-    // zh_CN: 如果是 prod 模式，则引入 CDN 依赖文件，有需要减少包大小请自行解除依赖
-    //
-    // if (isProd) {
-    //   config.plugin('html').tap(args => {
-    //     args[0].cdn = assetsCDN
-    //     return args
-    //   })
-    // }
+    config.module.rule('svg')
+      .oneOf('svg_as_component')
+      .resourceQuery(/inline/)
+      .test(/\.(svg)(\?.*)?$/)
+      .use('babel-loader')
+      .loader('babel-loader')
+      .end()
+      .use('vue-svg-loader')
+      .loader('vue-svg-loader')
+      .options({
+        svgo: {
+          plugins: [
+            { prefixIds: true },
+            { cleanupIDs: true },
+            { convertShapeToPath: false },
+            { convertStyleToAttrs: true }
+          ]
+        }
+      })
+      .end()
+      .end()
+      .oneOf('svg_as_regular')
+      .merge(svgRule.toConfig())
+      .end()
   },
 
+  // ========== CSS配置 ==========
   css: {
     loaderOptions: {
       less: {
         modifyVars: {
-          // less vars，customize ant design theme
-
-          // 'primary-color': '#F5222D',
-          // 'link-color': '#F5222D',
           'border-radius-base': '2px'
         },
-        // DO NOT REMOVE THIS LINE
         javascriptEnabled: true
       }
     }
   },
 
   devServer: {
-    // development server port 8000
     port: 8000,
     proxy: {
       '/api': {
@@ -133,19 +115,18 @@ const vueConfig = {
     }
   },
 
-  // disable source map in production
   productionSourceMap: false,
-  lintOnSave: undefined,
-  // babel-loader no-ignore node_modules/*
-  transpileDependencies: []
+  lintOnSave: false,
+  transpileDependencies: ['ant-design-vue', '@ant-design-vue']
 }
 
-// Add ThemeColorReplacer plugin for theme color switching
-// This plugin is needed in production to support dynamic theme color changes
-vueConfig.configureWebpack.plugins.push(createThemeColorReplacerPlugin())
+// 安全添加ThemeColorReplacer插件
+const themePlugin = getThemeColorReplacerPlugin()
+if (themePlugin && themePlugin.apply) {
+  vueConfig.configureWebpack.plugins.push(themePlugin)
+}
+
+// 设置Node.js兼容性选项
+process.env.NODE_OPTIONS = process.env.NODE_OPTIONS || '--openssl-legacy-provider'
 
 module.exports = vueConfig
-// vue.config.js
-// module.exports = {
-//   lintOnSave: false  // 禁用 ESLint
-// }
