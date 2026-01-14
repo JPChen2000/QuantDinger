@@ -1,0 +1,12 @@
+{
+    "deepseek-v3.2": {
+        "base_url": "https://api.deepseek.ai",
+        "api_key": "YOUR_API_KEY",
+        "organization": "YOUR_ORGANIZATION_ID"
+    },
+    "qwen3-plus-latest": {
+        "base_url": "https://api.qwen.cc",
+        "api_key": "YOUR_API_KEY",
+        "organization": "YOUR_ORGANIZATION_ID"
+    }
+}

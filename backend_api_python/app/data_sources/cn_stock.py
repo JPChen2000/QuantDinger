@@ -14,7 +14,7 @@ import yfinance as yf
 from app.data_sources.base import BaseDataSource
 from app.data_sources.us_stock import USStockDataSource
 from app.utils.logger import get_logger
-from app.utils.http import get_retry_session
+from app.utils.http_util import get_retry_session
 
 logger = get_logger(__name__)
 
