@@ -215,7 +215,7 @@ export default {
           user_agreement: '',
           privacy_policy: ''
         },
-        copyright: '© 2025-2026 QuantDinger'
+        copyright: '© 2025-2026 QuantDinger. All rights reserved.'
       },
       // 是否是首次初始化主题色（用于决定是否显示"正在切换主题"提示）
       isInitialThemeColorLoad: true
