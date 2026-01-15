@@ -2409,8 +2409,8 @@ export default {
         // 使用和 indicator-analysis 页面相同的接口
         const res = await request({
           url: '/api/indicator/getIndicators',
-          method: 'get',
-          params: {
+          method: 'post',
+          data: {
             userid: userId
           }
         })

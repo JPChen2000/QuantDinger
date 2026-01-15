@@ -2,7 +2,7 @@
 Analysis API routes (local-only).
 Implements multi-dimensional analysis plus lightweight task/history APIs for the frontend.
 """
-from flask import Blueprint, request, jsonify, Response, g
+from flask import Blueprint, request, jsonify, Response
 import json
 import traceback
 import time
@@ -11,11 +11,11 @@ from app.services.analysis import AnalysisService, reflect_analysis
 from app.utils.logger import get_logger
 from app.utils.db import get_db_connection
 from app.utils.language import detect_request_language
-from app.utils.auth import login_required
 
 logger = get_logger(__name__)
 
 analysis_bp = Blueprint('analysis', __name__)
+DEFAULT_USER_ID = 1
 
 def _now_ts() -> int:
     return int(time.time())
@@ -23,58 +23,27 @@ def _now_ts() -> int:
 def _normalize_symbol(symbol: str) -> str:
     return (symbol or '').strip().upper()
 
-def _store_task(user_id: int, market: str, symbol: str, model: str, language: str, status: str, result: dict = None, error_message: str = "") -> int:
-    """Create a new task record. For pending tasks, completed_at is NULL."""
+def _store_task(market: str, symbol: str, model: str, language: str, status: str, result: dict = None, error_message: str = "") -> int:
+    now = _now_ts()
     result_json = json.dumps(result or {}, ensure_ascii=False)
     with get_db_connection() as db:
         cur = db.cursor()
-        if status in ['completed', 'failed']:
-            cur.execute(
-                """
-                INSERT INTO qd_analysis_tasks (user_id, market, symbol, model, language, status, result_json, error_message, created_at, completed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-                """,
-                (user_id, market, symbol, model or '', language or 'en-US', status, result_json, error_message or '')
-            )
-        else:
-            cur.execute(
-                """
-                INSERT INTO qd_analysis_tasks (user_id, market, symbol, model, language, status, result_json, error_message, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
-                """,
-                (user_id, market, symbol, model or '', language or 'en-US', status, result_json, error_message or '')
-            )
+        cur.execute(
+            """
+            INSERT INTO qd_analysis_tasks (user_id, market, symbol, model, language, status, result_json, error_message, created_at, completed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (DEFAULT_USER_ID, market, symbol, model or '', language or 'en-US', status, result_json, error_message or '', now, now if status in ['completed', 'failed'] else None)
+        )
         task_id = cur.lastrowid
         db.commit()
         cur.close()
     return int(task_id)
 
-
-def _update_task(task_id: int, status: str, result: dict = None, error_message: str = "") -> bool:
-    """Update an existing task with result and status."""
-    try:
-        result_json = json.dumps(result or {}, ensure_ascii=False)
-        with get_db_connection() as db:
-            cur = db.cursor()
-            cur.execute(
-                """
-                UPDATE qd_analysis_tasks 
-                SET status = ?, result_json = ?, error_message = ?, completed_at = NOW()
-                WHERE id = ?
-                """,
-                (status, result_json, error_message or '', task_id)
-            )
-            db.commit()
-            cur.close()
-        return True
-    except Exception as e:
-        logger.error(f"_update_task failed: {e}")
-        return False
-
-def _get_task(task_id: int, user_id: int) -> dict:
+def _get_task(task_id: int) -> dict:
     with get_db_connection() as db:
         cur = db.cursor()
-        cur.execute("SELECT * FROM qd_analysis_tasks WHERE id = ? AND user_id = ?", (task_id, user_id))
+        cur.execute("SELECT * FROM qd_analysis_tasks WHERE id = ? AND user_id = ?", (task_id, DEFAULT_USER_ID))
         row = cur.fetchone()
         cur.close()
     return row or None
@@ -91,25 +60,16 @@ def _parse_result_json(row: dict) -> dict:
 
 @analysis_bp.route('/multi', methods=['POST'])
 @analysis_bp.route('/multiAnalysis', methods=['POST'])  # compatibility with legacy naming
-@login_required
 def multi_analysis():
     """
-    Multi-dimensional analysis for the current user.
+    Multi-dimensional analysis.
 
     Request body:
         market: Market (AShare, USStock, HShare, Crypto, Forex, Futures)
         symbol: Symbol
         language: Optional; if omitted we will detect from request headers (X-App-Lang / Accept-Language)
     """
-    task_id = None
-    user_id = None
-    market = ''
-    symbol = ''
-    model = None
-    language = 'en-US'
-    
     try:
-        user_id = g.user_id
         data = request.get_json()
         if not data:
             return jsonify({
@@ -140,83 +100,49 @@ def multi_analysis():
 
         logger.info(f"Analyze request: {market}:{symbol}, use_multi_agent={use_multi_agent}, model={model}")
         
-        # Step 0: Check billing (计费检查)
-        from app.services.billing_service import get_billing_service
-        billing_success, billing_msg = get_billing_service().check_and_consume(
-            user_id=user_id,
-            feature='ai_analysis',
-            reference_id=f'{market}:{symbol}'
-        )
-        if not billing_success:
-            if 'insufficient_credits' in billing_msg:
-                parts = billing_msg.split(':')
-                current = parts[1] if len(parts) > 1 else '0'
-                required = parts[2] if len(parts) > 2 else '?'
-                return jsonify({
-                    'code': 0,
-                    'msg': f'Insufficient credits. Current: {current}, Required: {required}',
-                    'data': {'error_type': 'insufficient_credits', 'current': current, 'required': required}
-                }), 402
-            return jsonify({'code': 0, 'msg': billing_msg, 'data': None}), 400
-        
-        # Step 1: Create a "pending" task record first (so user can see progress in history)
-        task_id = _store_task(user_id, market, symbol, model or '', language, 'pending', result={}, error_message='')
-        
-        # Step 2: Run analysis in background thread (so user can navigate away)
-        import threading
-        
-        def run_analysis_background(task_id_inner, market_inner, symbol_inner, language_inner, model_inner, timeframe_inner, use_multi_agent_inner):
-            """Execute analysis in background and update task when done."""
-            try:
-                service = AnalysisService(use_multi_agent=use_multi_agent_inner)
-                result = service.analyze(market_inner, symbol_inner, language_inner, model=model_inner, timeframe=timeframe_inner)
-                _update_task(task_id_inner, 'completed', result=result, error_message='')
-                logger.info(f"Background analysis completed for task {task_id_inner}")
-            except Exception as e:
-                logger.error(f"Background analysis failed for task {task_id_inner}: {e}")
-                _update_task(task_id_inner, 'failed', result={}, error_message=str(e))
-        
-        analysis_thread = threading.Thread(
-            target=run_analysis_background,
-            args=(task_id, market, symbol, language, model, timeframe, use_multi_agent),
-            daemon=False  # Keep running even if main request thread ends
-        )
-        analysis_thread.start()
+        # Create analysis service instance (local-only; no paid credits)
+        service = AnalysisService(use_multi_agent=use_multi_agent)
+        result = service.analyze(market, symbol, language, model=model, timeframe=timeframe)
 
-        # Step 3: Return immediately with task_id (frontend will poll for results)
-        return jsonify({'code': 1, 'msg': 'success', 'data': {'task_id': task_id, 'status': 'pending'}})
+        # Persist as "completed" history (no paid credits in local mode).
+        task_id = _store_task(market, symbol, model or '', language, 'completed', result=result, error_message='')
+
+        # Keep frontend compatible: if it expects task polling, it can still use the id.
+        result_payload = dict(result or {})
+        result_payload['task_id'] = task_id
+
+        return jsonify({'code': 1, 'msg': 'success', 'data': result_payload})
         
     except Exception as e:
         logger.error(f"Analysis failed: {str(e)}")
         logger.error(traceback.format_exc())
-        
-        # Update existing task as "failed", or create a new failed record if task_id doesn't exist
         try:
-            if task_id:
-                _update_task(task_id, 'failed', result={}, error_message=str(e))
-            elif user_id:
-                _store_task(user_id, market, symbol, model or '', language, 'failed', result={}, error_message=str(e))
+            market = (data or {}).get('market', '') if 'data' in locals() else ''
+            symbol = (data or {}).get('symbol', '') if 'data' in locals() else ''
+            language = detect_request_language(request, body=(data or {}), default='en-US')
+            model = (data or {}).get('model', '') if 'data' in locals() else ''
+            market = str(market).strip()
+            symbol = _normalize_symbol(symbol)
+            _store_task(market, symbol, model, language, 'failed', result={}, error_message=str(e))
         except Exception:
             pass
-            
         return jsonify({
             'code': 0,
             'msg': f'Analysis failed: {str(e)}',
-            'data': {'task_id': task_id} if task_id else None
+            'data': None
         }), 500
 
 
-@analysis_bp.route('/getTaskStatus', methods=['GET'])
-@login_required
+@analysis_bp.route('/getTaskStatus', methods=['POST'])
 def get_task_status():
-    """Frontend compatibility: return task status + result by task_id for the current user."""
+    """Frontend compatibility: return task status + result by task_id."""
     try:
-        user_id = g.user_id
-        task_id = int(request.args.get('task_id') or 0)
+        data = request.get_json() or {}
+        task_id = int(data.get('task_id') or 0)
         if not task_id:
             return jsonify({'code': 0, 'msg': 'Missing task_id', 'data': None}), 400
 
-        row = _get_task(task_id, user_id)
+        row = _get_task(task_id)
         if not row:
             return jsonify({'code': 0, 'msg': 'Task not found', 'data': None}), 404
 
@@ -235,21 +161,20 @@ def get_task_status():
         return jsonify({'code': 0, 'msg': str(e), 'data': None}), 500
 
 
-@analysis_bp.route('/getHistoryList', methods=['GET'])
-@login_required
+@analysis_bp.route('/getHistoryList', methods=['POST'])
 def get_history_list():
-    """Frontend compatibility: paginated analysis history for the current user."""
+    """Frontend compatibility: paginated analysis history for the single user."""
     try:
-        user_id = g.user_id
-        page = int(request.args.get('page') or 1)
-        pagesize = int(request.args.get('pagesize') or 20)
+        data = request.get_json() or {}
+        page = int(data.get('page') or 1)
+        pagesize = int(data.get('pagesize') or 20)
         page = max(page, 1)
         pagesize = min(max(pagesize, 1), 100)
         offset = (page - 1) * pagesize
 
         with get_db_connection() as db:
             cur = db.cursor()
-            cur.execute("SELECT COUNT(1) as cnt FROM qd_analysis_tasks WHERE user_id = ?", (user_id,))
+            cur.execute("SELECT COUNT(1) as cnt FROM qd_analysis_tasks WHERE user_id = ?", (DEFAULT_USER_ID,))
             total = int((cur.fetchone() or {}).get('cnt') or 0)
             cur.execute(
                 """
@@ -259,7 +184,7 @@ def get_history_list():
                 ORDER BY id DESC
                 LIMIT ? OFFSET ?
                 """,
-                (user_id, pagesize, offset)
+                (DEFAULT_USER_ID, pagesize, offset)
             )
             rows = cur.fetchall() or []
             cur.close()
@@ -267,11 +192,6 @@ def get_history_list():
         out = []
         for r in rows:
             has_result = bool((r.get('result_json') or '').strip())
-            # Convert datetime to Unix timestamp for frontend compatibility
-            created_at = r.get('created_at')
-            completed_at = r.get('completed_at')
-            createtime = int(created_at.timestamp()) if created_at else 0
-            completetime = int(completed_at.timestamp()) if completed_at else None
             out.append({
                 'id': r.get('id'),
                 'market': r.get('market'),
@@ -280,8 +200,8 @@ def get_history_list():
                 'status': r.get('status'),
                 'has_result': has_result,
                 'error_message': r.get('error_message') or '',
-                'createtime': createtime,
-                'completetime': completetime
+                'createtime': int(r.get('created_at') or 0),
+                'completetime': int(r.get('completed_at') or 0) if r.get('completed_at') else None
             })
 
         return jsonify({'code': 1, 'msg': 'success', 'data': {'list': out, 'total': total}})
@@ -291,46 +211,13 @@ def get_history_list():
         return jsonify({'code': 0, 'msg': str(e), 'data': {'list': [], 'total': 0}}), 500
 
 
-@analysis_bp.route('/deleteTask', methods=['POST'])
-@login_required
-def delete_task():
-    """Delete an analysis task by task_id for the current user."""
-    try:
-        user_id = g.user_id
-        data = request.get_json() or {}
-        task_id = int(data.get('task_id') or 0)
-        
-        if not task_id:
-            return jsonify({'code': 0, 'msg': 'Missing task_id', 'data': None}), 400
-        
-        # Verify task belongs to user
-        row = _get_task(task_id, user_id)
-        if not row:
-            return jsonify({'code': 0, 'msg': 'Task not found', 'data': None}), 404
-        
-        # Delete the task
-        with get_db_connection() as db:
-            cur = db.cursor()
-            cur.execute("DELETE FROM qd_analysis_tasks WHERE id = ? AND user_id = ?", (task_id, user_id))
-            db.commit()
-            cur.close()
-        
-        return jsonify({'code': 1, 'msg': 'success', 'data': {'deleted_id': task_id}})
-    except Exception as e:
-        logger.error(f"delete_task failed: {str(e)}")
-        logger.error(traceback.format_exc())
-        return jsonify({'code': 0, 'msg': str(e), 'data': None}), 500
-
-
 @analysis_bp.route('/createTask', methods=['POST'])
-@login_required
 def create_task():
     """
     Compatibility endpoint for legacy frontend.
     In local-only mode we do not run a separate async worker; we create a completed task record immediately.
     """
     try:
-        user_id = g.user_id
         data = request.get_json() or {}
         market = str((data.get('market') or '')).strip()
         symbol = _normalize_symbol(data.get('symbol'))
@@ -341,7 +228,7 @@ def create_task():
             return jsonify({'code': 0, 'msg': 'Missing market or symbol', 'data': None}), 400
 
         # Create a placeholder "pending" task so frontend can show task_id if it needs it.
-        task_id = _store_task(user_id, market, symbol, str(model), language, 'pending', result={}, error_message='')
+        task_id = _store_task(market, symbol, str(model), language, 'pending', result={}, error_message='')
         return jsonify({'code': 1, 'msg': 'success', 'data': {'task_id': task_id, 'status': 'pending'}})
     except Exception as e:
         logger.error(f"create_task failed: {str(e)}")
@@ -349,8 +236,47 @@ def create_task():
         return jsonify({'code': 0, 'msg': str(e), 'data': None}), 500
 
 
+@analysis_bp.route('/stream', methods=['POST'])
+def stream_analysis():
+    """Streaming analysis (SSE)."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'code': 0, 'msg': 'Request body is required'}), 400
+        
+        market = data.get('market', '')
+        symbol = data.get('symbol', '')
+        language = detect_request_language(request, body=data, default='en-US')
+        use_multi_agent = data.get('use_multi_agent', None)
+        timeframe = data.get('timeframe', '1D')
+        
+        def generate():
+            try:
+                yield f"data: {json.dumps({'status': 'started', 'message': 'Analysis started'})}\n\n"
+                
+                service = AnalysisService(use_multi_agent=use_multi_agent)
+                result = service.analyze(market, symbol, language, timeframe=timeframe)
+                
+                yield f"data: {json.dumps({'status': 'completed', 'data': result})}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+        
+        return Response(
+            generate(),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Streaming analysis failed: {str(e)}")
+        return jsonify({'code': 0, 'msg': str(e)}), 500
+
+
 @analysis_bp.route('/reflect', methods=['POST'])
-@login_required
 def reflect():
     """
     Reflection API.

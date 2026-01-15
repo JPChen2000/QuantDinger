@@ -1,7 +1,7 @@
 """
 Backtest API routes
 """
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify
 from datetime import datetime
 import traceback
 import json
@@ -11,7 +11,6 @@ import os
 from app.services.backtest import BacktestService
 from app.utils.logger import get_logger
 from app.utils.db import get_db_connection
-from app.utils.auth import login_required
 import requests
 
 logger = get_logger(__name__)
@@ -83,12 +82,12 @@ def _normalize_lang(lang: str | None) -> str:
     return l2 if l2 in supported else "zh-CN"
 
 
-@backtest_bp.route('/backtest/precision-info', methods=['GET'])
+@backtest_bp.route('/backtest/precision-info', methods=['POST'])
 def get_precision_info():
     """
     获取回测精度信息（用于前端提示）
     
-    Params (Query String):
+    Params:
         market: 市场类型
         startDate: 开始日期 (YYYY-MM-DD)
         endDate: 结束日期 (YYYY-MM-DD)
@@ -97,10 +96,13 @@ def get_precision_info():
         精度信息，包含推荐的执行时间框架和预估K线数量
     """
     try:
-        # Use request.args for GET params
-        market = request.args.get('market', 'crypto')
-        start_date_str = request.args.get('startDate', '')
-        end_date_str = request.args.get('endDate', '')
+        data = request.get_json()
+        if not data:
+            return jsonify({'code': 0, 'msg': 'Request body is required'}), 400
+        
+        market = data.get('market', 'crypto')
+        start_date_str = data.get('startDate', '')
+        end_date_str = data.get('endDate', '')
         
         if not start_date_str or not end_date_str:
             return jsonify({'code': 0, 'msg': 'startDate and endDate are required'}), 400
@@ -121,10 +123,9 @@ def get_precision_info():
 
 
 @backtest_bp.route('/backtest', methods=['POST'])
-@login_required
 def run_backtest():
     """
-    Run indicator backtest for the current user.
+    Run indicator backtest
     
     Params:
         indicatorId: Indicator ID (optional)
@@ -147,8 +148,8 @@ def run_backtest():
                 'data': None
             }), 400
         
-        # Extract params - use current user's ID
-        user_id = g.user_id
+        # Extract params
+        user_id = int(data.get('userid') or data.get('userId') or 1)
         indicator_code = data.get('indicatorCode', '')
         indicator_id = data.get('indicatorId')
         symbol = data.get('symbol', '')
@@ -266,6 +267,7 @@ def run_backtest():
         # Persist backtest run for AI optimization / history
         run_id = None
         try:
+            now_ts = int(time.time())
             with get_db_connection() as db:
                 cur = db.cursor()
                 cur.execute(
@@ -274,7 +276,7 @@ def run_backtest():
                     (user_id, indicator_id, market, symbol, timeframe, start_date, end_date,
                      initial_capital, commission, slippage, leverage, trade_direction,
                      strategy_config, status, error_message, result_json, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         user_id,
@@ -292,7 +294,8 @@ def run_backtest():
                         json.dumps(strategy_config or {}, ensure_ascii=False),
                         'success',
                         '',
-                        json.dumps(result or {}, ensure_ascii=False)
+                        json.dumps(result or {}, ensure_ascii=False),
+                        now_ts
                     )
                 )
                 run_id = cur.lastrowid
@@ -324,8 +327,9 @@ def run_backtest():
         # Best-effort persist failed run (if we have enough context)
         try:
             data = data if isinstance(data, dict) else {}
-            user_id = g.user_id
+            user_id = int(data.get('userid') or data.get('userId') or 1)
             indicator_id = data.get('indicatorId')
+            now_ts = int(time.time())
             with get_db_connection() as db:
                 cur = db.cursor()
                 cur.execute(
@@ -334,7 +338,7 @@ def run_backtest():
                     (user_id, indicator_id, market, symbol, timeframe, start_date, end_date,
                      initial_capital, commission, slippage, leverage, trade_direction,
                      strategy_config, status, error_message, result_json, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         user_id,
@@ -352,7 +356,8 @@ def run_backtest():
                         json.dumps(data.get('strategyConfig') or {}, ensure_ascii=False),
                         'failed',
                         str(e),
-                        ''
+                        '',
+                        now_ts
                     )
                 )
                 db.commit()
@@ -366,13 +371,13 @@ def run_backtest():
         }), 500
 
 
-@backtest_bp.route('/backtest/history', methods=['GET'])
-@login_required
+@backtest_bp.route('/backtest/history', methods=['POST'])
 def get_backtest_history():
     """
-    Get backtest run history for the current user.
+    Get backtest run history (saved in SQLite).
 
-    Params (Query String):
+    Params:
+        userid: User ID (default 1)
         limit: Page size (default 50, max 200)
         offset: Offset (default 0)
         indicatorId: Optional indicator id filter
@@ -381,17 +386,17 @@ def get_backtest_history():
         timeframe: Optional timeframe filter
     """
     try:
-        # Use current user's ID
-        user_id = g.user_id
-        limit = int(request.args.get('limit') or 50)
-        offset = int(request.args.get('offset') or 0)
+        data = request.get_json() or {}
+        user_id = int(data.get('userid') or data.get('userId') or 1)
+        limit = int(data.get('limit') or 50)
+        offset = int(data.get('offset') or 0)
         limit = max(1, min(limit, 200))
         offset = max(0, offset)
 
-        indicator_id = request.args.get('indicatorId')
-        symbol = (request.args.get('symbol') or '').strip()
-        market = (request.args.get('market') or '').strip()
-        timeframe = (request.args.get('timeframe') or '').strip()
+        indicator_id = data.get('indicatorId')
+        symbol = (data.get('symbol') or '').strip()
+        market = (data.get('market') or '').strip()
+        timeframe = (data.get('timeframe') or '').strip()
 
         where = ["user_id = ?"]
         params = [user_id]
@@ -444,18 +449,19 @@ def get_backtest_history():
         return jsonify({'code': 0, 'msg': str(e), 'data': None}), 500
 
 
-@backtest_bp.route('/backtest/get', methods=['GET'])
-@login_required
+@backtest_bp.route('/backtest/get', methods=['POST'])
 def get_backtest_run():
     """
-    Get a backtest run detail by run id for the current user.
+    Get a backtest run detail by run id (includes result_json).
 
-    Params (Query String):
+    Params:
+        userid: User ID (default 1)
         runId: Backtest run id (required)
     """
     try:
-        user_id = g.user_id
-        run_id = int(request.args.get('runId') or 0)
+        data = request.get_json() or {}
+        user_id = int(data.get('userid') or data.get('userId') or 1)
+        run_id = int(data.get('runId') or 0)
         if not run_id:
             return jsonify({'code': 0, 'msg': 'runId is required', 'data': None}), 400
 
@@ -710,18 +716,17 @@ def _heuristic_ai_advice(runs: list[dict], lang: str) -> str:
 
 
 @backtest_bp.route('/backtest/aiAnalyze', methods=['POST'])
-@login_required
 def ai_analyze_backtest_runs():
     """
-    AI analyze selected backtest runs and provide strategy_config tuning suggestions
-    for the current user.
+    AI analyze selected backtest runs and provide strategy_config tuning suggestions.
 
     Params:
+        userid: User ID (default 1)
         runIds: list[int] (required)
     """
     try:
         data = request.get_json() or {}
-        user_id = g.user_id
+        user_id = int(data.get('userid') or data.get('userId') or 1)
         lang = _normalize_lang(data.get('lang'))
         run_ids = data.get('runIds') or []
         if not isinstance(run_ids, list) or not run_ids:

@@ -1,9 +1,9 @@
 import request from '@/utils/request'
 
 const userApi = {
-  Login: '/api/auth/login',
-  Logout: '/api/auth/logout',
-  UserInfo: '/api/auth/info',
+  Login: '/api/user/login',
+  Logout: '/api/user/logout',
+  UserInfo: '/api/user/info',
   UserMenu: '/user/nav'
 }
 

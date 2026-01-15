@@ -24,13 +24,7 @@ export default function Initializer () {
   store.commit(TOGGLE_WEAK, storage.get(TOGGLE_WEAK, defaultSettings.colorWeak))
   store.commit(TOGGLE_COLOR, storage.get(TOGGLE_COLOR, defaultSettings.primaryColor))
   store.commit(TOGGLE_MULTI_TAB, storage.get(TOGGLE_MULTI_TAB, defaultSettings.multiTab))
-  // 处理 token 可能是字符串或对象的情况
-  let token = storage.get(ACCESS_TOKEN)
-  if (token && typeof token !== 'string') {
-    token = token.token || token.value || (typeof token === 'object' ? null : token)
-  }
-  token = typeof token === 'string' ? token : null
-  store.commit('SET_TOKEN', token)
+  store.commit('SET_TOKEN', storage.get(ACCESS_TOKEN))
 
   store.dispatch('setLang', storage.get(APP_LANGUAGE, 'en-US'))
   // last step

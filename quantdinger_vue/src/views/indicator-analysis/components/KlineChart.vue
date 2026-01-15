@@ -1492,8 +1492,8 @@ registerOverlay({
         try {
           const response = await request({
             url: '/api/indicator/kline',
-            method: 'get',
-            params: {
+            method: 'post',
+            data: {
               market: props.market,
               symbol: props.symbol,
               timeframe: props.timeframe,
@@ -1614,13 +1614,13 @@ registerOverlay({
 
         const response = await request({
           url: '/api/indicator/kline',
-          method: 'get',
-          params: {
+          method: 'post',
+          data: {
             market: props.market,
             symbol: props.symbol,
             timeframe: props.timeframe,
             limit: 500,
-            before_time: beforeTime // 获取此时间之前的数据
+            beforeTime: beforeTime // 获取此时间之前的数据
           }
         })
 
@@ -1742,13 +1742,13 @@ registerOverlay({
         const earliestTime = Math.floor(earliestTimestamp / 1000) // 转换为秒级
         const response = await request({
           url: '/api/indicator/kline',
-          method: 'get',
-          params: {
+          method: 'post',
+          data: {
             market: props.market,
             symbol: props.symbol,
             timeframe: props.timeframe,
             limit: 500,
-            before_time: earliestTime // 获取此时间之前的数据
+            beforeTime: earliestTime // 获取此时间之前的数据
           }
         })
 
@@ -1805,8 +1805,8 @@ registerOverlay({
         // 只获取最新的5根K线用于更新
         const response = await request({
           url: '/api/indicator/kline',
-          method: 'get',
-          params: {
+          method: 'post',
+          data: {
             market: props.market,
             symbol: props.symbol,
             timeframe: props.timeframe,

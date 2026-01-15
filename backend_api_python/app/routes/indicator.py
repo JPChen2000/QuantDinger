@@ -17,13 +17,12 @@ import time
 import traceback
 from typing import Any, Dict, List
 
-from flask import Blueprint, Response, jsonify, request, g
+from flask import Blueprint, Response, jsonify, request
 import pandas as pd
 import numpy as np
 
 from app.utils.db import get_db_connection
 from app.utils.logger import get_logger
-from app.utils.auth import login_required
 import requests
 
 logger = get_logger(__name__)
@@ -116,21 +115,24 @@ def _generate_mock_df(length=200):
     return df
 
 
-@indicator_bp.route("/getIndicators", methods=["GET"])
-@login_required
+@indicator_bp.route("/getIndicators", methods=["POST"])
 def get_indicators():
     """
-    Get indicator list for the current user.
+    Get indicator list for a user.
+
+    Request:
+      { userid: number }
 
     Response:
       { code: 1, data: [ ... ] }
     """
     try:
-        user_id = g.user_id
+        data = request.get_json() or {}
+        user_id = int(data.get("userid") or 1)
 
         with get_db_connection() as db:
             cur = db.cursor()
-            # Get user's own indicators (both purchased and custom).
+            # Local mode: "我的指标" should include both purchased and custom indicators.
             cur.execute(
                 """
                 SELECT
@@ -154,13 +156,13 @@ def get_indicators():
 
 
 @indicator_bp.route("/saveIndicator", methods=["POST"])
-@login_required
 def save_indicator():
     """
-    Create or update an indicator for the current user.
+    Create or update an indicator.
 
     Request (frontend sends many extra fields; we store only the essentials):
       {
+        userid: number,
         id: number (0 for create),
         name: string,
         code: string,
@@ -170,7 +172,7 @@ def save_indicator():
     """
     try:
         data = request.get_json() or {}
-        user_id = g.user_id
+        user_id = int(data.get("userid") or 1)
         indicator_id = int(data.get("id") or 0)
         code = data.get("code") or ""
         name = (data.get("name") or "").strip()
@@ -197,7 +199,7 @@ def save_indicator():
         if not name:
             name = "Custom Indicator"
 
-        now = _now_ts()  # For BIGINT fields (createtime, updatetime)
+        now = _now_ts()
 
         with get_db_connection() as db:
             cur = db.cursor()
@@ -207,10 +209,10 @@ def save_indicator():
                     UPDATE qd_indicator_codes
                     SET name = ?, code = ?, description = ?,
                         publish_to_community = ?, pricing_type = ?, price = ?, preview_image = ?,
-                        updatetime = ?, updated_at = NOW()
+                        updatetime = ?, updated_at = ?
                     WHERE id = ? AND user_id = ? AND (is_buy IS NULL OR is_buy = 0)
                     """,
-                    (name, code, description, publish_to_community, pricing_type, price, preview_image, now, indicator_id, user_id),
+                    (name, code, description, publish_to_community, pricing_type, price, preview_image, now, now, indicator_id, user_id),
                 )
             else:
                 cur.execute(
@@ -219,9 +221,9 @@ def save_indicator():
                       (user_id, is_buy, end_time, name, code, description,
                        publish_to_community, pricing_type, price, preview_image,
                        createtime, updatetime, created_at, updated_at)
-                    VALUES (?, 0, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                    VALUES (?, 0, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (user_id, name, code, description, publish_to_community, pricing_type, price, preview_image, now, now),
+                    (user_id, name, code, description, publish_to_community, pricing_type, price, preview_image, now, now, now, now),
                 )
                 indicator_id = int(cur.lastrowid or 0)
             db.commit()
@@ -234,12 +236,11 @@ def save_indicator():
 
 
 @indicator_bp.route("/deleteIndicator", methods=["POST"])
-@login_required
 def delete_indicator():
-    """Delete an indicator by id for the current user."""
+    """Delete an indicator by id."""
     try:
         data = request.get_json() or {}
-        user_id = g.user_id
+        user_id = int(data.get("userid") or 1)
         indicator_id = int(data.get("id") or 0)
         if not indicator_id:
             return jsonify({"code": 0, "msg": "id is required", "data": None}), 400
@@ -260,7 +261,6 @@ def delete_indicator():
 
 
 @indicator_bp.route("/verifyCode", methods=["POST"])
-@login_required
 def verify_code():
     """
     Verify/Dry-run indicator code with mock data.
@@ -372,7 +372,6 @@ def verify_code():
 
 
 @indicator_bp.route("/aiGenerate", methods=["POST"])
-@login_required
 def ai_generate():
     """
     SSE endpoint to generate indicator code.

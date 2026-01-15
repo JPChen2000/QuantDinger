@@ -1,4 +1,4 @@
-import request, { ANALYSIS_TIMEOUT } from '@/utils/request'
+import request from '@/utils/request'
 
 const marketApi = {
   // Watchlist
@@ -11,7 +11,6 @@ const marketApi = {
   CreateAnalysisTask: '/api/analysis/createTask',
   GetAnalysisTaskStatus: '/api/analysis/getTaskStatus',
   GetAnalysisHistoryList: '/api/analysis/getHistoryList',
-  DeleteAnalysisTask: '/api/analysis/deleteTask',
   ReflectAnalysis: '/api/analysis/reflect',
   // AI chat (optional)
   ChatMessage: '/api/ai/chat/message',
@@ -35,8 +34,8 @@ const marketApi = {
 export function getWatchlist (parameter) {
   return request({
     url: marketApi.GetWatchlist,
-    method: 'get',
-    params: parameter
+    method: 'post',
+    data: parameter
   })
 }
 
@@ -74,10 +73,8 @@ export function removeWatchlist (parameter) {
 export function getWatchlistPrices (parameter) {
   return request({
     url: marketApi.GetWatchlistPrices,
-    method: 'get',
-    params: {
-      watchlist: JSON.stringify(parameter.watchlist || [])
-    }
+    method: 'post',
+    data: parameter
   })
 }
 
@@ -102,8 +99,8 @@ export function chatMessage (parameter) {
 export function getChatHistory (parameter) {
   return request({
     url: marketApi.GetChatHistory,
-    method: 'get',
-    params: parameter
+    method: 'post',
+    data: parameter
   })
 }
 
@@ -129,8 +126,7 @@ export function multiAnalysis (parameter) {
   return request({
     url: marketApi.MultiAnalysis,
     method: 'post',
-    data: parameter,
-    timeout: ANALYSIS_TIMEOUT // Extended timeout for AI analysis
+    data: parameter
   })
 }
 
@@ -155,8 +151,8 @@ export function createAnalysisTask (parameter) {
 export function getAnalysisTaskStatus (parameter) {
   return request({
     url: marketApi.GetAnalysisTaskStatus,
-    method: 'get',
-    params: parameter
+    method: 'post',
+    data: parameter
   })
 }
 
@@ -168,19 +164,6 @@ export function getAnalysisTaskStatus (parameter) {
 export function getAnalysisHistoryList (parameter) {
   return request({
     url: marketApi.GetAnalysisHistoryList,
-    method: 'get',
-    params: parameter
-  })
-}
-
-/**
- * Delete analysis task
- * @param parameter { task_id: number }
- * @returns {*}
- */
-export function deleteAnalysisTask (parameter) {
-  return request({
-    url: marketApi.DeleteAnalysisTask,
     method: 'post',
     data: parameter
   })
@@ -217,7 +200,8 @@ export function getConfig () {
 export function getMenuFooterConfig () {
   return request({
     url: marketApi.GetMenuFooterConfig,
-    method: 'get'
+    method: 'post',
+    data: {}
   })
 }
 
@@ -240,8 +224,8 @@ export function getMarketTypes () {
 export function searchSymbols (parameter) {
   return request({
     url: marketApi.SearchSymbols,
-    method: 'get',
-    params: parameter
+    method: 'post',
+    data: parameter
   })
 }
 
@@ -253,7 +237,7 @@ export function searchSymbols (parameter) {
 export function getHotSymbols (parameter) {
   return request({
     url: marketApi.GetHotSymbols,
-    method: 'get',
-    params: parameter
+    method: 'post',
+    data: parameter
   })
 }

@@ -41,10 +41,11 @@ def _extract_meta_from_code(code: str) -> Dict[str, str]:
     return {"name": name, "description": description}
 
 
-@strategy_code_bp.route("/strategy/getStrategies", methods=["GET"])
+@strategy_code_bp.route("/strategy/getStrategies", methods=["POST"])
 def get_strategies():
     try:
-        user_id = int(request.args.get("userid") or 1)
+        data = request.get_json() or {}
+        user_id = int(data.get("userid") or 1)
         with get_db_connection() as db:
             cur = db.cursor()
             cur.execute(

@@ -30,11 +30,7 @@ function getStoredToken () {
 }
 
 const initialInfo = getStoredInfo()
-// If is_demo is missing (legacy cache), force roles to empty to trigger GetInfo in permission.js
-let initialRoles = getStoredRoles()
-if (initialInfo && typeof initialInfo.is_demo === 'undefined') {
-  initialRoles = []
-}
+const initialRoles = getStoredRoles()
 const initialToken = getStoredToken() || ''
 const initialName = initialInfo.nickname || initialInfo.username || ''
 const initialAvatar = initialInfo.avatar || ''
@@ -70,7 +66,7 @@ const user = {
 
   actions: {
     // 登录
-    Login ({ commit, dispatch }, userInfo) {
+    Login ({ commit }, userInfo) {
       return new Promise((resolve, reject) => {
         login(userInfo).then(response => {
           // 适配 Python 后端响应格式
@@ -90,22 +86,10 @@ const user = {
             commit('SET_NAME', { name: name, welcome: welcome() })
             commit('SET_AVATAR', info.avatar || '/avatar2.jpg')
 
-            // 从服务器返回的角色信息设置角色
-            let roles = [DEFAULT_ROLE]
-            if (info.role) {
-              // role: { id: 'admin', permissions: [...] }
-              const roleId = info.role.id || info.role
-              const permissions = info.role.permissions || []
-              roles = [{
-                id: roleId,
-                permissionList: permissions.length > 0 ? permissions : ['dashboard']
-              }]
-            }
+            // 设置默认角色，防止路由鉴权失败
+            const roles = [{ id: 'admin', permissionList: ['dashboard', 'exception', 'account'] }]
             commit('SET_ROLES', roles)
             storage.set(USER_ROLES, roles, expiresAt)
-
-            // 重置路由，强制重新生成（根据新用户的角色）
-            dispatch('ResetRoutes')
 
             resolve(response)
           } else {
@@ -295,8 +279,7 @@ const user = {
     GetInfo ({ commit, state }) {
       return new Promise((resolve, reject) => {
         // 用户信息已经在登录时保存到 store 中，直接返回
-        // 增加 check: 必须包含 is_demo 字段，否则视为过期缓存，强制刷新
-        if (state.info && Object.keys(state.info).length > 0 && typeof state.info.is_demo !== 'undefined') {
+        if (state.info && Object.keys(state.info).length > 0) {
           // 补全 Roles
           const info = state.info
           if (info.role) {
@@ -396,7 +379,7 @@ const user = {
     },
 
     // 登出
-    Logout ({ commit, state, dispatch }) {
+    Logout ({ commit, state }) {
       return new Promise((resolve) => {
         // 兼容旧登出与新后端登出
         const req = typeof apiLogout === 'function' ? apiLogout() : logout(state.token)
@@ -409,16 +392,12 @@ const user = {
           storage.remove(ACCESS_TOKEN)
           storage.remove(USER_INFO)
           storage.remove(USER_ROLES)
-          // 重置路由
-          dispatch('ResetRoutes')
           resolve()
         }).catch(() => {
           // 登出失败时也继续执行，确保清理本地状态
           storage.remove(ACCESS_TOKEN)
           storage.remove(USER_INFO)
           storage.remove(USER_ROLES)
-          // 重置路由
-          dispatch('ResetRoutes')
           resolve()
         }).finally(() => {
         })

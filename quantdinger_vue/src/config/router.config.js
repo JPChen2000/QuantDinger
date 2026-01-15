@@ -51,26 +51,12 @@ export const asyncRouterMap = [
         component: () => import('@/views/indicator-community'),
         meta: { title: 'menu.dashboard.community', keepAlive: false, icon: 'shop', permission: ['dashboard'] }
       },
-      // 系统设置 (admin only)
+      // 系统设置
       {
         path: '/settings',
         name: 'Settings',
         component: () => import('@/views/settings'),
-        meta: { title: 'menu.settings', keepAlive: false, icon: 'setting', permission: ['admin'] }
-      },
-      // 用户管理 (admin only)
-      {
-        path: '/user-manage',
-        name: 'UserManage',
-        component: () => import('@/views/user-manage'),
-        meta: { title: 'menu.userManage', keepAlive: false, icon: 'team', permission: ['admin'] }
-      },
-      // 个人中心
-      {
-        path: '/profile',
-        name: 'Profile',
-        component: () => import('@/views/profile'),
-        meta: { title: 'menu.myProfile', keepAlive: false, icon: 'user', permission: ['dashboard'] }
+        meta: { title: 'menu.settings', keepAlive: false, icon: 'setting', permission: ['dashboard'] }
       }
 
       // other
@@ -159,6 +145,11 @@ export const constantRouterMap = [
         path: 'login',
         name: 'login',
         component: () => import(/* webpackChunkName: "user" */ '@/views/user/Login')
+      },
+      {
+        path: 'recover',
+        name: 'recover',
+        component: undefined
       }
     ]
   },

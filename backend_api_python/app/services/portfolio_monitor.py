@@ -79,11 +79,10 @@ def _safe_json_loads(value, default=None):
     return default
 
 
-def _get_positions_for_monitor(position_ids: List[int] = None, user_id: int = None) -> List[Dict[str, Any]]:
-    """Get positions, optionally filtered by IDs and user_id."""
+def _get_positions_for_monitor(position_ids: List[int] = None) -> List[Dict[str, Any]]:
+    """Get positions, optionally filtered by IDs."""
     try:
         kline_service = KlineService()
-        effective_user_id = user_id if user_id is not None else DEFAULT_USER_ID
         
         with get_db_connection() as db:
             cur = db.cursor()
@@ -95,7 +94,7 @@ def _get_positions_for_monitor(position_ids: List[int] = None, user_id: int = No
                     FROM qd_manual_positions
                     WHERE user_id = ? AND id IN ({placeholders})
                     """,
-                    [effective_user_id] + list(position_ids)
+                    [DEFAULT_USER_ID] + list(position_ids)
                 )
             else:
                 cur.execute(
@@ -104,7 +103,7 @@ def _get_positions_for_monitor(position_ids: List[int] = None, user_id: int = No
                     FROM qd_manual_positions
                     WHERE user_id = ?
                     """,
-                    (effective_user_id,)
+                    (DEFAULT_USER_ID,)
                 )
             rows = cur.fetchall() or []
             cur.close()
@@ -727,17 +726,15 @@ def _send_monitor_notification(
     positions: List[Dict[str, Any]] = None,
     position_analyses: List[Dict[str, Any]] = None,
     language: str = 'en-US',
-    custom_prompt: str = '',
-    user_id: int = None
+    custom_prompt: str = ''
 ) -> None:
     """Send notification with analysis result using appropriate format for each channel."""
     try:
         notifier = SignalNotifier()
-        effective_user_id = user_id if user_id is not None else DEFAULT_USER_ID
-
+        
         channels = notification_config.get('channels', ['browser'])
         targets = notification_config.get('targets', {})
-
+        
         title = f"📊 资产监测: {monitor_name}" if language.startswith('zh') else f"📊 Portfolio Monitor: {monitor_name}"
         
         if not result.get('success'):
@@ -748,16 +745,17 @@ def _send_monitor_notification(
                 try:
                     ch = str(channel).strip().lower()
                     if ch == 'browser':
+                        now = _now_ts()
                         with get_db_connection() as db:
                             cur = db.cursor()
                             cur.execute(
                                 """
                                 INSERT INTO qd_strategy_notifications
-                                (user_id, strategy_id, symbol, signal_type, channels, title, message, payload_json, created_at)
-                                VALUES (?, NULL, ?, ?, ?, ?, ?, ?, NOW())
+                                (strategy_id, symbol, signal_type, channels, title, message, payload_json, created_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                                 """,
-                                (effective_user_id, 'PORTFOLIO', 'ai_monitor', 'browser', error_title, error_msg,
-                                 json.dumps(result, ensure_ascii=False))
+                                (0, 'PORTFOLIO', 'ai_monitor', 'browser', error_title, error_msg,
+                                 json.dumps(result, ensure_ascii=False), now)
                             )
                             db.commit()
                             cur.close()
@@ -794,16 +792,17 @@ def _send_monitor_notification(
                 
                 if ch == 'browser':
                     # Browser notification uses HTML report
+                    now = _now_ts()
                     with get_db_connection() as db:
                         cur = db.cursor()
                         cur.execute(
                             """
                             INSERT INTO qd_strategy_notifications
-                            (user_id, strategy_id, symbol, signal_type, channels, title, message, payload_json, created_at)
-                            VALUES (?, NULL, ?, ?, ?, ?, ?, ?, NOW())
+                            (strategy_id, symbol, signal_type, channels, title, message, payload_json, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             """,
-                            (effective_user_id, 'PORTFOLIO', 'ai_monitor', 'browser', title, html_report,
-                             json.dumps(result, ensure_ascii=False))
+                            (0, 'PORTFOLIO', 'ai_monitor', 'browser', title, html_report,
+                             json.dumps(result, ensure_ascii=False), now)
                         )
                         db.commit()
                         cur.close()
@@ -849,28 +848,24 @@ def _send_monitor_notification(
         logger.error(f"_send_monitor_notification failed: {e}")
 
 
-def run_single_monitor(monitor_id: int, override_language: str = None, user_id: int = None) -> Dict[str, Any]:
+def run_single_monitor(monitor_id: int, override_language: str = None) -> Dict[str, Any]:
     """Run a single monitor and return the result.
     
     Args:
         monitor_id: The monitor ID to run
         override_language: Optional language override (e.g., 'zh-CN', 'en-US')
                           If provided, will override the language in monitor config
-        user_id: Optional user ID for user isolation
     """
     try:
-        # Use provided user_id or default
-        effective_user_id = user_id if user_id is not None else DEFAULT_USER_ID
-        
         with get_db_connection() as db:
             cur = db.cursor()
             cur.execute(
                 """
-                SELECT id, user_id, name, position_ids, monitor_type, config, notification_config
+                SELECT id, name, position_ids, monitor_type, config, notification_config
                 FROM qd_position_monitors
                 WHERE id = ? AND user_id = ?
                 """,
-                (monitor_id, effective_user_id)
+                (monitor_id, DEFAULT_USER_ID)
             )
             row = cur.fetchone()
             cur.close()
@@ -878,7 +873,6 @@ def run_single_monitor(monitor_id: int, override_language: str = None, user_id: 
         if not row:
             return {'success': False, 'error': 'Monitor not found'}
         
-        monitor_user_id = int(row.get('user_id') or effective_user_id)
         name = row.get('name') or f'Monitor #{monitor_id}'
         position_ids = _safe_json_loads(row.get('position_ids'), [])
         monitor_type = row.get('monitor_type') or 'ai'
@@ -889,8 +883,8 @@ def run_single_monitor(monitor_id: int, override_language: str = None, user_id: 
         if override_language:
             config['language'] = override_language
         
-        # Get positions for this user
-        positions = _get_positions_for_monitor(position_ids if position_ids else None, user_id=monitor_user_id)
+        # Get positions
+        positions = _get_positions_for_monitor(position_ids if position_ids else None)
         
         if not positions:
             return {'success': False, 'error': 'No positions to analyze'}
@@ -903,21 +897,19 @@ def run_single_monitor(monitor_id: int, override_language: str = None, user_id: 
             result = {'success': False, 'error': f'Unsupported monitor type: {monitor_type}'}
         
         # Update monitor record
+        now = _now_ts()
         interval_minutes = int(config.get('interval_minutes') or 60)
+        next_run_at = now + (interval_minutes * 60)
         
         with get_db_connection() as db:
             cur = db.cursor()
             cur.execute(
                 """
                 UPDATE qd_position_monitors
-                SET last_run_at = NOW(), 
-                    next_run_at = NOW() + INTERVAL '%s minutes', 
-                    last_result = ?, 
-                    run_count = run_count + 1, 
-                    updated_at = NOW()
+                SET last_run_at = ?, next_run_at = ?, last_result = ?, run_count = run_count + 1, updated_at = ?
                 WHERE id = ?
                 """,
-                (interval_minutes, json.dumps(result, ensure_ascii=False), monitor_id)
+                (now, next_run_at, json.dumps(result, ensure_ascii=False), now, monitor_id)
             )
             db.commit()
             cur.close()
@@ -934,8 +926,7 @@ def run_single_monitor(monitor_id: int, override_language: str = None, user_id: 
                 positions=positions,
                 position_analyses=position_analyses,
                 language=language,
-                custom_prompt=custom_prompt,
-                user_id=monitor_user_id
+                custom_prompt=custom_prompt
             )
         
         return result
@@ -947,24 +938,24 @@ def run_single_monitor(monitor_id: int, override_language: str = None, user_id: 
 
 def _check_position_alerts():
     """Check all active alerts and trigger notifications if conditions are met."""
-    from datetime import datetime, timezone
     try:
         kline_service = KlineService()
         notifier = SignalNotifier()
-        now = datetime.now(timezone.utc)
+        now = _now_ts()
         
         with get_db_connection() as db:
             cur = db.cursor()
-            # Get active alerts for all users that haven't been triggered (or can repeat)
+            # Get active alerts that haven't been triggered (or can repeat)
             cur.execute(
                 """
-                SELECT a.id, a.user_id, a.position_id, a.market, a.symbol, a.alert_type, a.threshold,
+                SELECT a.id, a.position_id, a.market, a.symbol, a.alert_type, a.threshold,
                        a.notification_config, a.is_triggered, a.last_triggered_at, a.repeat_interval,
                        p.entry_price, p.quantity, p.side, p.name as position_name
                 FROM qd_position_alerts a
                 LEFT JOIN qd_manual_positions p ON a.position_id = p.id
-                WHERE a.is_active = 1
-                """
+                WHERE a.user_id = ? AND a.is_active = 1
+                """,
+                (DEFAULT_USER_ID,)
             )
             alerts = cur.fetchall() or []
             cur.close()
@@ -972,24 +963,19 @@ def _check_position_alerts():
         for alert in alerts:
             try:
                 alert_id = alert.get('id')
-                alert_user_id = int(alert.get('user_id') or 1)
                 alert_type = alert.get('alert_type')
                 threshold = float(alert.get('threshold') or 0)
                 market = alert.get('market')
                 symbol = alert.get('symbol')
                 is_triggered = bool(alert.get('is_triggered'))
-                last_triggered_at = alert.get('last_triggered_at')  # datetime or None
+                last_triggered_at = alert.get('last_triggered_at') or 0
                 repeat_interval = int(alert.get('repeat_interval') or 0)
                 notification_config = _safe_json_loads(alert.get('notification_config'), {})
                 
                 # Check if we can trigger (not triggered yet, or repeat interval passed)
                 can_trigger = not is_triggered
-                if is_triggered and repeat_interval > 0 and last_triggered_at:
-                    # Convert last_triggered_at to timezone-aware if needed
-                    if last_triggered_at.tzinfo is None:
-                        last_triggered_at = last_triggered_at.replace(tzinfo=timezone.utc)
-                    elapsed_seconds = (now - last_triggered_at).total_seconds()
-                    if elapsed_seconds >= repeat_interval:
+                if is_triggered and repeat_interval > 0:
+                    if now - last_triggered_at >= repeat_interval:
                         can_trigger = True
                 
                 if not can_trigger:
@@ -1062,10 +1048,10 @@ def _check_position_alerts():
                         cur.execute(
                             """
                             UPDATE qd_position_alerts
-                            SET is_triggered = 1, last_triggered_at = NOW(), trigger_count = trigger_count + 1, updated_at = NOW()
+                            SET is_triggered = 1, last_triggered_at = ?, trigger_count = trigger_count + 1, updated_at = ?
                             WHERE id = ?
                             """,
-                            (alert_id,)
+                            (now, now, alert_id)
                         )
                         db.commit()
                         cur.close()
@@ -1084,11 +1070,11 @@ def _check_position_alerts():
                                     cur.execute(
                                         """
                                         INSERT INTO qd_strategy_notifications
-                                        (user_id, strategy_id, symbol, signal_type, channels, title, message, payload_json, created_at)
-                                        VALUES (?, NULL, ?, ?, ?, ?, ?, ?, NOW())
+                                        (strategy_id, symbol, signal_type, channels, title, message, payload_json, created_at)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                                         """,
-                                        (alert_user_id, symbol, 'price_alert', 'browser', alert_title, alert_message,
-                                         json.dumps({'alert_id': alert_id, 'alert_type': alert_type}, ensure_ascii=False))
+                                        (0, symbol, 'price_alert', 'browser', alert_title, alert_message,
+                                         json.dumps({'alert_id': alert_id, 'alert_type': alert_type}, ensure_ascii=False), now)
                                     )
                                     db.commit()
                                     cur.close()
@@ -1110,7 +1096,7 @@ def _check_position_alerts():
         logger.error(f"_check_position_alerts failed: {e}")
 
 
-def notify_strategy_signal_for_positions(market: str, symbol: str, signal_type: str, signal_detail: str, user_id: int = None):
+def notify_strategy_signal_for_positions(market: str, symbol: str, signal_type: str, signal_detail: str):
     """
     Called when a strategy signal is triggered. 
     Check if user has manual positions in this symbol and send notification.
@@ -1122,25 +1108,14 @@ def notify_strategy_signal_for_positions(market: str, symbol: str, signal_type: 
         
         with get_db_connection() as db:
             cur = db.cursor()
-            # Query positions for all users or specific user
-            if user_id is not None:
-                cur.execute(
-                    """
-                    SELECT id, user_id, market, symbol, name, side, quantity, entry_price, group_name
-                    FROM qd_manual_positions
-                    WHERE user_id = ? AND symbol = ?
-                    """,
-                    (user_id, symbol)
-                )
-            else:
-                cur.execute(
-                    """
-                    SELECT id, user_id, market, symbol, name, side, quantity, entry_price, group_name
-                    FROM qd_manual_positions
-                    WHERE symbol = ?
-                    """,
-                    (symbol,)
-                )
+            cur.execute(
+                """
+                SELECT id, market, symbol, name, side, quantity, entry_price, group_name
+                FROM qd_manual_positions
+                WHERE user_id = ? AND symbol = ?
+                """,
+                (DEFAULT_USER_ID, symbol)
+            )
             positions = cur.fetchall() or []
             cur.close()
         
@@ -1152,7 +1127,6 @@ def notify_strategy_signal_for_positions(market: str, symbol: str, signal_type: 
         now = _now_ts()
         
         for pos in positions:
-            pos_user_id = int(pos.get('user_id') or 1)
             pos_name = pos.get('name') or symbol
             pos_side = pos.get('side') or 'long'
             quantity = float(pos.get('quantity') or 0)
@@ -1175,11 +1149,11 @@ def notify_strategy_signal_for_positions(market: str, symbol: str, signal_type: 
                 cur.execute(
                     """
                     INSERT INTO qd_strategy_notifications
-                    (user_id, strategy_id, symbol, signal_type, channels, title, message, payload_json, created_at)
-                    VALUES (?, NULL, ?, ?, ?, ?, ?, ?, NOW())
+                    (strategy_id, symbol, signal_type, channels, title, message, payload_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (pos_user_id, symbol, 'strategy_linkage', 'browser', title, message,
-                     json.dumps({'signal_type': signal_type}, ensure_ascii=False))
+                    (0, symbol, 'strategy_linkage', 'browser', title, message,
+                     json.dumps({'signal_type': signal_type}, ensure_ascii=False), now)
                 )
                 db.commit()
                 cur.close()
@@ -1196,19 +1170,22 @@ def _monitor_loop():
     
     while not _stop_event.is_set():
         try:
-            # 1. Check position alerts (price/pnl alerts) for all users
+            now = _now_ts()
+            
+            # 1. Check position alerts (price/pnl alerts)
             _check_position_alerts()
             
-            # 2. Find AI monitors that are due for all users
+            # 2. Find AI monitors that are due
             with get_db_connection() as db:
                 cur = db.cursor()
                 cur.execute(
                     """
-                    SELECT id, user_id FROM qd_position_monitors
-                    WHERE is_active = 1 AND next_run_at <= NOW()
+                    SELECT id FROM qd_position_monitors
+                    WHERE user_id = ? AND is_active = 1 AND next_run_at <= ?
                     ORDER BY next_run_at ASC
                     LIMIT 10
-                    """
+                    """,
+                    (DEFAULT_USER_ID, now)
                 )
                 rows = cur.fetchall() or []
                 cur.close()
@@ -1217,11 +1194,10 @@ def _monitor_loop():
                 if _stop_event.is_set():
                     break
                 monitor_id = row.get('id')
-                monitor_user_id = int(row.get('user_id') or 1)
                 if monitor_id:
-                    logger.info(f"Running due monitor #{monitor_id} for user #{monitor_user_id}")
+                    logger.info(f"Running due monitor #{monitor_id}")
                     try:
-                        run_single_monitor(monitor_id, user_id=monitor_user_id)
+                        run_single_monitor(monitor_id)
                     except Exception as e:
                         logger.error(f"Monitor #{monitor_id} execution failed: {e}")
         except Exception as e:

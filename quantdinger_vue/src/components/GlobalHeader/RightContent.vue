@@ -1,6 +1,6 @@
 <template>
   <div :class="wrpCls">
-    <avatar-dropdown :menu="true" :current-user="currentUser" :class="prefixCls" />
+    <!-- User avatar/name removed for local OSS build -->
     <notice-icon :class="prefixCls" />
     <select-lang :class="prefixCls" />
     <a-tooltip :title="$t('app.setting.tooltip')">
@@ -12,15 +12,12 @@
 </template>
 
 <script>
-import AvatarDropdown from './AvatarDropdown'
 import SelectLang from '@/components/SelectLang'
 import NoticeIcon from '@/components/NoticeIcon'
-import { mapGetters } from 'vuex'
 
 export default {
   name: 'RightContent',
   components: {
-    AvatarDropdown,
     SelectLang,
     NoticeIcon
   },
@@ -54,13 +51,6 @@ export default {
     }
   },
   computed: {
-    ...mapGetters(['nickname', 'avatar']),
-    currentUser () {
-      return {
-        name: this.nickname,
-        avatar: this.avatar
-      }
-    },
     wrpCls () {
       return {
         'ant-pro-global-header-index-right': true,
