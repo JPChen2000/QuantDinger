@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List
 from app.utils.logger import get_logger
 from app.config import APIKeys
 from app.utils.config_loader import load_addon_config
+from app.utils.json_loader import load_llm_api_key_config
 
 logger = get_logger(__name__)
 
@@ -31,6 +32,96 @@ class LLMService:
         # Keep compatible with old/new config keys.
         import os
         return config.get('openrouter', {}).get('base_url') or os.getenv('OPENROUTER_BASE_URL', "https://openrouter.ai/api/v1")
+
+    def call_openai_api(self, messages: list, model: str = None, temperature: float = 0.7, use_fallback: bool = True) -> str:
+        """Call OpenAI API, with optional fallback models."""
+        config = load_llm_api_key_config("/home/jarvis/QuantDinger/backend_api_python/llm_models.json");
+        default_model = "deepseek-chat"
+        if model is None:
+            model = default_model
+        model = "deepseek-chat"
+
+        if model is None:
+            raise ValueError(f"Local model config is not set, failed to call llm")
+
+        if model not in config:
+            raise ValueError(f"Unknown Model {model}")
+
+        model_config = config[model]
+        model_base_url = model_config['base_url']
+        model_api_key = model_config['api_key']
+        model_organization = model_config['organization']
+
+        url = f"{model_base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {model_api_key}",
+            "Content-Type": "application/json",
+        }
+
+        # Build model candidates (primary + optional fallbacks).
+        models_to_try = [model]
+
+        # Fallback models are currently hard-coded for local mode.
+        fallback_models = ["deepseek-chat"]
+
+        if use_fallback and model == default_model:
+            models_to_try.extend(fallback_models)
+
+        last_error = None
+
+        timeout = 300
+
+        for current_model in models_to_try:
+            try:
+                data = {
+                    "model": current_model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "response_format": {"type": "json_object"}
+                }
+                # logger.debug(f"Trying model: {current_model}")
+
+                response = requests.post(url, headers=headers, json=data, timeout=timeout)
+                if response.status_code == 402:
+                    logger.warning(f"OpenAI returned 402 for model {current_model}; trying fallback model...")
+                    last_error = f"402 Payment Required for model {current_model}"
+                    continue
+
+                response.raise_for_status()
+
+                result = response.json()
+                if "choices" in result and len(result["choices"]) > 0:
+                    content = result["choices"][0]["message"]["content"]
+                    if not content:
+                        raise ValueError(f"Model {current_model} returned empty content")
+
+                    if current_model != model:
+                        logger.info(f"Fallback model succeeded: {current_model}")
+                    return content
+                else:
+                    logger.error(f"OpenAI API returned unexpected structure ({current_model}): {json.dumps(result)}")
+                    raise ValueError("OpenAI API response is missing 'choices'")
+
+            except requests.exceptions.HTTPError as e:
+                logger.error(f"OpenAI API HTTP error ({current_model}): {e.response.text if e.response else str(e)}")
+                last_error = str(e)
+                if not use_fallback or current_model == models_to_try[-1]:
+                    raise
+            except requests.exceptions.RequestException as e:
+                logger.error(f"OpenAI API request error ({current_model}): {str(e)}")
+                last_error = str(e)
+                if not use_fallback or current_model == models_to_try[-1]:
+                    raise
+            except ValueError as e:
+                logger.warning(f"Model {current_model} returned invalid data: {str(e)}")
+                last_error = str(e)
+                # If this is not the last candidate model, try the next one
+                if current_model == models_to_try[-1]:
+                    raise
+
+        error_msg = f"All model calls failed. Last error: {last_error}"
+        logger.error(error_msg)
+        raise Exception(error_msg)
 
     def call_openrouter_api(self, messages: list, model: str = None, temperature: float = 0.7, use_fallback: bool = True) -> str:
         """Call OpenRouter API, with optional fallback models."""
@@ -121,7 +212,11 @@ class LLMService:
         """Safe LLM call with robust JSON parsing and fallback structure."""
         response_text = ""
         try:
-            response_text = self.call_openrouter_api([
+            # response_text = self.call_openrouter_api([
+            #     {"role": "system", "content": system_prompt},
+            #     {"role": "user", "content": user_prompt}
+            # ], model=model)
+            response_text = self.call_openai_api([
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ], model=model)

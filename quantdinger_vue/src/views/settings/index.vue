@@ -37,7 +37,8 @@
             </template>
 
             <!-- AI 组特殊：显示 OpenRouter 余额查询卡片 -->
-            <div v-if="groupKey === 'ai'" class="openrouter-balance-card">
+            <div v-if="groupKey === 'ai' && isOpenRouterEnabled()" 
+              class="openrouter-balance-card">
               <a-card size="small" :bordered="false">
                 <div class="balance-header">
                   <span class="balance-title">
@@ -92,6 +93,7 @@
             <a-form :form="form" layout="vertical" class="settings-form">
               <a-row :gutter="24">
                 <a-col
+                  v-if="shouldShowItem(groupKey, item)"
                   :xs="24"
                   :sm="24"
                   :md="12"
@@ -287,6 +289,44 @@ export default {
       } finally {
         this.balanceLoading = false
       }
+    },
+
+	shouldShowItem (groupKey, item) {
+	  // 只处理 AI 组里的 OPENROUTER_URL
+      if (groupKey === 'ai') {
+		// 读取 ENABLE_OPENROUTER 的当前值
+		const enabled = this.form.getFieldValue('ENABLE_OPENROUTER')
+        if (item.key === 'OPENROUTER_API_URL'
+          || item.key === 'OPENROUTER_API_KEY'
+          || item.key === 'OPENROUTER_MODEL') {
+		  // 如果还没初始化，用后端 values 兜底
+		  const fallback =
+		    (this.values.ai?.ENABLE_OPENROUTER === 'True' ||
+		  	this.values.ai?.ENABLE_OPENROUTER === true)
+		  return enabled !== undefined ? enabled : fallback
+        } else if (item.key == 'OPENAI_MODEL') {
+          const fallback = 
+            (this.values.ai?.ENABLE_OPENROUTER === 'False' ||
+              this.values.ai?.ENABLE_OPENROUTER === false)
+          return enabled !== undefined ? !enabled : fallback
+        }
+      }
+	  // 其他字段默认显示
+	  return true
+	},
+
+    isOpenRouterEnabled () {
+      const val = this.form.getFieldValue('ENABLE_OPENROUTER')
+
+      if (val !== undefined) {
+        return val
+      }
+
+      // 表单还没初始化，用后端值兜底
+      return (
+        this.values.ai?.ENABLE_OPENROUTER === 'True' ||
+        this.values.ai?.ENABLE_OPENROUTER === true
+      )
     },
 
     getGroupIcon (groupKey) {

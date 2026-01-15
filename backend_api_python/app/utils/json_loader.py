@@ -15,14 +15,12 @@ logger = get_logger(__name__)
 
 def load_llm_api_key_config(path: str) -> Dict[str, Any]:
     """
-    Load LLMs API Keys form local json file 
+    Load LLMs API Keys form local json file
     """
-    if not os.path.exists(path): 
-        print(f"LLM API Key config file not found: {path}")
+    if not os.path.exists(path):
         return {}
     try:
         with open(path, 'r') as f:
-            print(f"Loading LLM API Key config from {path}")
             return json.load(f)
     except Exception as e:
         logger.error(f"Failed to load LLM API Key config: {e}")
@@ -30,4 +28,4 @@ def load_llm_api_key_config(path: str) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     result = load_llm_api_key_config("/home/jarvis/QuantDinger/backend_api_python/llm_models.json")
-    print(result["deepseek-v3.2"])
+    print(result)

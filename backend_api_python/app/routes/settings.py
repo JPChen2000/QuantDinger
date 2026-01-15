@@ -83,6 +83,14 @@ CONFIG_SCHEMA = {
         'order': 3,
         'items': [
             {
+                'key': 'ENABLE_OPENROUTER',
+                'label': 'Use OpenRouter',
+                'type': 'boolean',
+                'default': False,
+                'required': True,
+                'description': 'Use OpenRouter Config'
+            },
+            {
                 'key': 'OPENROUTER_API_KEY',
                 'label': 'OpenRouter API Key',
                 'type': 'password',
@@ -105,6 +113,13 @@ CONFIG_SCHEMA = {
                 'default': 'openai/gpt-4o',
                 'link': 'https://openrouter.ai/models',
                 'link_text': 'settings.link.viewModels',
+                'description': 'Default LLM model ID, e.g. openai/gpt-4o, anthropic/claude-3.5-sonnet'
+            },
+            {
+                'key': 'OPENAI_MODEL',
+                'label': 'Default Model',
+                'type': 'text',
+                'default': 'deepseek-v3.2',
                 'description': 'Default LLM model ID, e.g. openai/gpt-4o, anthropic/claude-3.5-sonnet'
             },
             {
@@ -142,7 +157,7 @@ CONFIG_SCHEMA = {
                 'default': '{}',
                 'required': False,
                 'description': 'Custom model list in JSON format for model selector'
-            },
+            }
         ]
     },
 

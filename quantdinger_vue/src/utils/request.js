@@ -15,7 +15,7 @@ const request = axios.create({
   // API 请求的默认前缀
   // 生产环境应由 Nginx 处理，开发环境由 devServer proxy 处理
   baseURL: '/',
-  timeout: 6000, // 请求超时时间
+  timeout: 60000, // 请求超时时间
   withCredentials: true // 允许携带 cookies
 })
 
